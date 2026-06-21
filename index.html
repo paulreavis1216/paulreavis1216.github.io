@@ -185,8 +185,8 @@ const HUBS=M.hubs, hubset=new Set(HUBS);
 const hubChildren={}; for(const h of HUBS) hubChildren[h]=[];
 for(const [a,b] of M.trunk){ if(hubChildren[a]) hubChildren[a].push(b); }
 for(const h of HUBS) hubChildren[h].sort((p,q)=>year[p]-year[q]);
-const hx=new Float64Array(N), hy=new Float64Array(N);
-{const GAP=240;let cur=0;const post=[];const it=[ROOT];const ptr={};HUBS.forEach(h=>ptr[h]=0);
+const hx=new Float64Array(N), hy=new Float64Array(N), hyNudge={};
+{const GAP=420;let cur=0;const post=[];const it=[ROOT];const ptr={};HUBS.forEach(h=>ptr[h]=0);
  // guard: only traverse hub-tree
  const stack=[ROOT];const seen=new Set();
  (function rec(n){ // iterative postorder over hubChildren
@@ -195,17 +195,23 @@ const hx=new Float64Array(N), hy=new Float64Array(N);
      if(top[1]<ch.length){top[1]++;st.push([ch[top[1]-1],0]);}else{post.push(top[0]);st.pop();}}
  })(ROOT);
  for(const n of post){const ch=hubChildren[n]||[];if(!ch.length){hx[n]=cur;cur+=GAP;}else hx[n]=(hx[ch[0]]+hx[ch[ch.length-1]])/2;}
- for(const h of HUBS) hy[h]=yPix(year[h]);}
-let HUB_W=0;for(const h of HUBS)if(hx[h]>HUB_W)HUB_W=hx[h];HUB_W+=GAPpad();function GAPpad(){return 240;}
+ // nudge hubs that share an exact year so their labels don't sit directly on top of one another
+ const byYear={};for(const h of HUBS){const y=year[h]|0;(byYear[y]=byYear[y]||[]).push(h);}
+ for(const y in byYear){const grp=byYear[y];if(grp.length<2)continue;grp.sort((p,q)=>hx[p]-hx[q]);
+   const mid=(grp.length-1)/2;grp.forEach((h,k)=>{hyNudge[h]=(k-mid)*26;});}
+ // stretch the vertical axis in constellation mode so densely-packed trunk years (e.g. 1911,1912,1912,1914) get real separation
+ const CONST_YSTRETCH=1.6; const y0=year[ROOT];
+ for(const h of HUBS) hy[h]=yPix(y0)+(yPix(year[h])-yPix(y0))*CONST_YSTRETCH+(hyNudge[h]||0);}
+let HUB_W=0;for(const h of HUBS)if(hx[h]>HUB_W)HUB_W=hx[h];HUB_W+=GAPpad();function GAPpad(){return 420;}
 // spatial grid (full)
 const CELL=40;const grid=new Map();const gk=(a,b)=>a*100003+b;
 for(let i=0;i<N;i++){const k=gk((x[i]/CELL)|0,(ny[i]/CELL)|0);if(!grid.has(k))grid.set(k,[]);grid.get(k).push(i);}
 
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
-let DPR=Math.min(window.devicePixelRatio||1,2),view={s:0.12,k:1,tx:0,ty:0},W=0,Hh=0;
+let DPR=Math.min(window.devicePixelRatio||1,2),view={s:0.12,k:1,kx:1,tx:0,ty:0},W=0,Hh=0;
 function resize(){W=innerWidth;Hh=innerHeight;cv.width=W*DPR;cv.height=Hh*DPR;cv.style.width=W+'px';cv.style.height=Hh+'px';drawHist();draw();}
 addEventListener('resize',resize);
-const w2sx=wx=>wx*view.s+view.tx,w2sy=wy=>wy*view.s*view.k+view.ty,s2wx=sx=>(sx-view.tx)/view.s,s2wy=sy=>(sy-view.ty)/(view.s*view.k);
+const w2sx=wx=>wx*view.s*view.kx+view.tx,w2sy=wy=>wy*view.s*view.k+view.ty,s2wx=sx=>(sx-view.tx)/(view.s*view.kx),s2wy=sy=>(sy-view.ty)/(view.s*view.k);
 function railPx(){return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--rail'))||0;}
 function curX(i){return MODE==='const'?hx[i]:x[i];}
 function curY(i){return MODE==='const'?hy[i]:ny[i];}
@@ -281,11 +287,20 @@ function draw(){
   // labels
   if(labelsOn||useHub){labelCands.sort((p,q)=>D.nodes[q[0]][DC]-D.nodes[p[0]][DC]);const cap=Math.min(labelCands.length,useHub?40:420);
     ctx.textAlign='left';ctx.textBaseline='middle';
+    const placed=[]; // occupied screen-space rects, for greedy collision avoidance (highest-priority label wins)
     for(let k=0;k<cap;k++){const[i,sx,sy,r,a]=labelCands[k];
       const fs=useHub?(i===ROOT?17:13):(i===ROOT?15:D.nodes[i][DC]>1500?12:D.nodes[i][DC]>300?11:10);
       ctx.font=(i===ROOT?"italic 600 ":(useHub?"500 ":""))+fs+"px 'Fraunces',serif";
-      ctx.fillStyle=hexA('#e9e1d0',Math.min(1,a+0.1));ctx.shadowColor='rgba(0,0,0,.9)';ctx.shadowBlur=4;
       let lbl=D.nodes[i][NAME]; if(useHub&&i!==ROOT) lbl+='  ·  '+(yearUnknown[i]?'date unknown':(year[i]|0));
+      if(useHub){ // only the constellation view is dense enough to need this
+        const tw=ctx.measureText(lbl).width;
+        const bx0=sx+r+2,by0=sy-fs*0.65,bx1=bx0+tw+6,by1=sy+fs*0.65;
+        let hit=false;
+        for(const p of placed){ if(bx0<p[2]&&bx1>p[0]&&by0<p[3]&&by1>p[1]){hit=true;break;} }
+        if(hit) continue; // skip this label, keep its dot — a higher-priority hub already claimed this space
+        placed.push([bx0,by0,bx1,by1]);
+      }
+      ctx.fillStyle=hexA('#e9e1d0',Math.min(1,a+0.1));ctx.shadowColor='rgba(0,0,0,.9)';ctx.shadowBlur=4;
       ctx.fillText(lbl,sx+r+4,sy);ctx.shadowBlur=0;}}
   ctx.restore();positionMiles();
   document.getElementById('stShown').textContent=fmt(shownCount);
@@ -314,19 +329,20 @@ function positionMiles(){for(const m of MILES){let sy=w2sy(yPix(m.y));const el=m
   el.classList.toggle('future',m.y>curYear);if(m.y<=curYear||true)el.style.opacity='';}}
 
 // ---- view helpers ----
-function fitTo(minx,maxx,miny,maxy,maxS,vfill){const padL=60,padR=railPx()+60,padT=150,padB=110;
+function fitTo(minx,maxx,miny,maxy,maxS,vfill,hfill){const padL=60,padR=railPx()+60,padT=150,padB=110;
   const availW=W-padL-padR, availH=Hh-padT-padB;
   const bw=Math.max(maxx-minx,40),bh=Math.max(maxy-miny,40);
-  let s,k;
+  let s,k,kx=1;
   if(vfill){ s=Math.min(availW/bw, maxS||3); k=Math.max(1,Math.min(availH/(bh*s),8)); }
-  else { s=Math.min(availW/bw, availH/bh, maxS||3); k=1; }
-  view.s=s; view.k=k;
-  view.tx=padL+(availW-bw*s)/2-minx*s;
+  else if(hfill){ s=Math.min(availH/bh, maxS||3); kx=Math.max(1,Math.min(availW/(bw*s),8)); k=1; }
+  else { s=Math.min(availW/bw, availH/bh, maxS||3); k=1; kx=1; }
+  view.s=s; view.k=k; view.kx=kx;
+  view.tx=padL+(availW-bw*s*kx)/2-minx*s*kx;
   view.ty=padT+(availH-bh*s*k)/2-miny*s*k;draw();}
 function fitAll(){ancSet=null;subSet=null;focusOn=false;
-  if(MODE==='const'){let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;for(const h of HUBS){mnx=Math.min(mnx,hx[h]);mxx=Math.max(mxx,hx[h]);mny=Math.min(mny,hy[h]);mxy=Math.max(mxy,hy[h]);}fitTo(mnx,mxx,mny,mxy,1.2,false);}
-  else fitTo(0,WORLD_W,40,WORLD_H+40,1,true);}
-function toRoot(){view.k=1;view.s=0.5;view.tx=W/2-curX(ROOT)*view.s;view.ty=120-curY(ROOT)*view.s*view.k;draw();}
+  if(MODE==='const'){let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;for(const h of HUBS){mnx=Math.min(mnx,hx[h]);mxx=Math.max(mxx,hx[h]);mny=Math.min(mny,hy[h]);mxy=Math.max(mxy,hy[h]);}fitTo(mnx,mxx,mny,mxy,2.0,false,true);}
+  else fitTo(0,WORLD_W,40,WORLD_H+40,1,true,false);}
+function toRoot(){view.k=1;view.kx=1;view.s=0.5;view.tx=W/2-curX(ROOT)*view.s;view.ty=120-curY(ROOT)*view.s*view.k;draw();}
 
 // ---- interaction ----
 let drag=false,lastX,lastY,moved=false,pts=new Map(),pd0=0;
@@ -338,7 +354,7 @@ cv.addEventListener('pointermove',e=>{if(pts.has(e.pointerId))pts.set(e.pointerI
 cv.addEventListener('pointerup',e=>{pts.delete(e.pointerId);if(pts.size<2)pd0=0;drag=false;cv.classList.remove('drag');if(!moved)clickAt(e);});
 cv.addEventListener('pointerleave',()=>{drag=false;cv.classList.remove('drag');tip.style.display='none';});
 cv.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.clientX,e.clientY,Math.exp(-e.deltaY*0.0012));},{passive:false});
-function zoomAt(sx,sy,f){const ns=Math.max(0.02,Math.min(8,view.s*f));const wx=s2wx(sx),wy=s2wy(sy);view.s=ns;view.tx=sx-wx*ns;view.ty=sy-wy*ns*view.k;draw();}
+function zoomAt(sx,sy,f){const ns=Math.max(0.02,Math.min(8,view.s*f));const wx=s2wx(sx),wy=s2wy(sy);view.s=ns;view.tx=sx-wx*ns*view.kx;view.ty=sy-wy*ns*view.k;draw();}
 function nearest(sx,sy){const wx=s2wx(sx),wy=s2wy(sy);
   if(MODE==='const'){let best=-1,bd=1e9;for(const i of HUBS){if(!vis(i))continue;const d=(hx[i]-wx)**2+(hy[i]-wy)**2;const rr=Math.max(14/view.s,16);if(d<rr*rr&&d<bd){bd=d;best=i;}}return best;}
   const cx=(wx/CELL)|0,cy=(wy/CELL)|0;let best=-1,bd=1e9;
@@ -365,7 +381,7 @@ function select(i){hi=i;ancSet=null;subSet=null;focusOn=false;regSet=null;regCom
   draw();centerOn(i,Math.max(view.s,0.5));}
 function esc(s){return(s+'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function closeDetail(){det.classList.remove('show');hi=null;ancSet=null;focusOn=false;subSet=null;regSet=null;draw();}
-function centerOn(i,s){view.s=s;view.tx=W/2-curX(i)*s;view.ty=Hh*0.42-curY(i)*s*view.k;draw();}
+function centerOn(i,s){view.s=s;view.kx=1;view.tx=W/2-curX(i)*s*view.kx;view.ty=Hh*0.42-curY(i)*s*view.k;draw();}
 document.getElementById('dClose').onclick=closeDetail;
 document.getElementById('dTrace').onclick=()=>{if(hi==null)return;ancSet=ancestry(hi);subSet=null;focusOn=false;regSet=null;
   let a=1e9,b=-1e9,c=1e9,d=-1e9;ancSet.forEach(i=>{a=Math.min(a,curX(i));b=Math.max(b,curX(i));c=Math.min(c,curY(i));d=Math.max(d,curY(i));});fitTo(a,b,c,d,3);};
