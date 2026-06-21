@@ -282,7 +282,8 @@ function draw(){
     if((D.nodes[i][DC]>400)&&(view.s<0.6||useHub)){ctx.beginPath();ctx.fillStyle=hexA('#c9a24b',(useHub?0.16:0.10)*a);ctx.arc(sx,sy,r+(useHub?9:6),0,6.2832);ctx.fill();}
     ctx.beginPath();ctx.fillStyle=hexA(col,a);ctx.arc(sx,sy,r,0,6.2832);ctx.fill();
     if(i===ROOT){ctx.lineWidth=2;ctx.strokeStyle=hexA('#c9a24b',a);ctx.stroke();}
-    if(labelsOn||useHub){labelCands.push([i,sx,sy,r,a]);}
+    const isDimmed = (ancSet&&!ancSet.has(i)) || (focusOn&&subSet&&!subSet.has(i)) || (regSet&&!regSet.has(i));
+    if((labelsOn||useHub)&&!isDimmed){labelCands.push([i,sx,sy,r,a]);}
   }
   // labels — tiered by zoom, like a star chart: planets (founders) at Fit All, then moons, comets/asteroids, then debris as you zoom past ~75%
   if(labelsOn||useHub){
@@ -302,13 +303,17 @@ function draw(){
         ctx.fillStyle=hexA('#e9e1d0',Math.min(1,a+0.1));ctx.shadowColor='rgba(0,0,0,.9)';ctx.shadowBlur=4;
         ctx.fillText(lbl,sx+r+4,sy);ctx.shadowBlur=0;}
     } else {
+      const highlightActive = !!(ancSet || (focusOn&&subSet) || regSet);
       // TIER THRESHOLDS — gated by how far view.s has moved past fitS (the actual Fit-All scale for this window),
       // so the tiers calibrate correctly regardless of window size. k/kx decay independently and don't track
       // "how zoomed in" reliably, so the gate intentionally ignores them and uses raw s vs. fitS instead.
       // Real DC distribution: DC>=1500 -> 18 nodes (planets) · DC>=200 -> 82 (moons) · DC>=29 -> 283 (comets/asteroids) · rest -> debris
+      // When a highlight (trace/isolate/registrant) is active, skip the gate entirely — that small, already-filtered
+      // set should show every name it can fit, not be further pruned by descendant count.
       const zoomRatio = view.s/Math.max(fitS,1e-6);
       let dcGate;
-      if(zoomRatio<1.6) dcGate=1500;     // at/near Fit All: planets only
+      if(highlightActive) dcGate=0;
+      else if(zoomRatio<1.6) dcGate=1500;     // at/near Fit All: planets only
       else if(zoomRatio<5) dcGate=200;   // early zoom: + moons
       else if(zoomRatio<16) dcGate=29;   // mid zoom: + comets & asteroids
       else dcGate=0;                    // deep zoom (~75%+, well past inspecting a single cluster): everything, incl. debris
@@ -449,16 +454,16 @@ function select(i,minZoom){hi=i;ancSet=null;subSet=null;focusOn=false;regSet=nul
     `<dt>Descendants</dt><dd><span class="big">${fmt(D.nodes[i][DC])}</span></dd>`;
   draw();centerOn(i,minZoom?Math.max(view.s,minZoom):view.s);}
 function esc(s){return(s+'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
-function closeDetail(){det.classList.remove('show');hi=null;ancSet=null;focusOn=false;subSet=null;regSet=null;draw();}
+function closeDetail(){det.classList.remove('show');hi=null;ancSet=null;focusOn=false;subSet=null;regSet=null;regCombo.clearSilently();grexCombo.clearSilently();fitAll();}
 function centerOn(i,s){
   const t=Math.max(0,Math.min(1,(s/fitS-1)/5));
   view.k = fitK + (1-fitK)*t; view.kx = fitKx + (1-fitKx)*t;
   view.s=s;view.tx=W/2-curX(i)*s*view.kx;view.ty=Hh*0.42-curY(i)*s*view.k;draw();}
 document.getElementById('dClose').onclick=closeDetail;
 document.getElementById('dTrace').onclick=()=>{if(hi==null)return;ancSet=ancestry(hi);subSet=null;focusOn=false;regSet=null;
-  let a=1e9,b=-1e9,c=1e9,d=-1e9;ancSet.forEach(i=>{a=Math.min(a,curX(i));b=Math.max(b,curX(i));c=Math.min(c,curY(i));d=Math.max(d,curY(i));});fitTo(a,b,c,d,3);};
+  let a=1e9,b=-1e9,c=1e9,d=-1e9;ancSet.forEach(i=>{a=Math.min(a,curX(i));b=Math.max(b,curX(i));c=Math.min(c,curY(i));d=Math.max(d,curY(i));});fitTo(a,b,c,d,3,true);};
 document.getElementById('dFocus').onclick=()=>{if(hi==null)return;subSet=subtree(hi);ancSet=null;focusOn=true;regSet=null;
-  let a=1e9,b=-1e9,c=1e9,d=-1e9;subSet.forEach(i=>{a=Math.min(a,curX(i));b=Math.max(b,curX(i));c=Math.min(c,curY(i));d=Math.max(d,curY(i));});fitTo(a,b,c,d,3);};
+  let a=1e9,b=-1e9,c=1e9,d=-1e9;subSet.forEach(i=>{a=Math.min(a,curX(i));b=Math.max(b,curX(i));c=Math.min(c,curY(i));d=Math.max(d,curY(i));});fitTo(a,b,c,d,3,true);};
 
 // ---- controls ----
 document.getElementById('bFit').onclick=fitAll;
@@ -485,7 +490,7 @@ function jumpTo(i){
 
 function fitToSet(set){
   let a=1e9,b=-1e9,c=1e9,d=-1e9;set.forEach(i=>{a=Math.min(a,curX(i));b=Math.max(b,curX(i));c=Math.min(c,curY(i));d=Math.max(d,curY(i));});
-  fitTo(a,b,c,d,3);
+  fitTo(a,b,c,d,3,true);
 }
 
 // generic combobox builder
@@ -510,7 +515,7 @@ function makeCombo(inputId,dropId,clrId,getMatches,onPick,onClear){
   inp.addEventListener('keydown',e=>{
     if(e.key==='ArrowDown'){e.preventDefault();sel=Math.min(items.length-1,sel+1);highlight();}
     else if(e.key==='ArrowUp'){e.preventDefault();sel=Math.max(0,sel-1);highlight();}
-    else if(e.key==='Enter'){e.preventDefault();if(sel>=0&&items[sel])pick(sel);}
+    else if(e.key==='Enter'){e.preventDefault();const idx=sel>=0?sel:0;if(items[idx])pick(idx);}
     else if(e.key==='Escape'){close();}
   });
   function highlight(){[...drop.children].forEach((el,k)=>el.classList.toggle('sel',k===sel));
