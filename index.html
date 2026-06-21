@@ -13,7 +13,7 @@
   html,body{margin:0;height:100%;background:var(--bg);color:var(--bone);font-family:'Spectral',Georgia,serif;overflow:hidden;-webkit-text-size-adjust:100%}
   canvas#cv{display:block;position:absolute;inset:0;cursor:grab;touch-action:none}
   canvas#cv.drag{cursor:grabbing}
-  #title{position:fixed;left:22px;top:18px;max-width:min(44ch,50vw);pointer-events:none;z-index:6}
+  #title{position:fixed;left:22px;top:18px;max-width:min(40ch,32vw);pointer-events:none;z-index:6}
   #title .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.34em;text-transform:uppercase;color:var(--gold);margin:0 0 6px}
   #title h1{font-family:'Fraunces',serif;font-weight:900;font-size:clamp(20px,3vw,38px);line-height:.98;margin:0}
   #title h1 em{font-style:italic;font-weight:400}
@@ -21,15 +21,29 @@
   #stats{position:fixed;left:22px;bottom:18px;display:flex;gap:22px;z-index:8;pointer-events:none;font-family:'IBM Plex Mono',monospace}
   #stats .s b{display:block;font-size:clamp(16px,2vw,22px);color:var(--bone);font-weight:500}
   #stats .s span{font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--bone-dim)}
-  #ctl{position:fixed;right:calc(var(--rail) + 14px);top:18px;z-index:7;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+  #ctl{position:fixed;left:min(38ch,34vw);right:calc(var(--rail) + 14px);top:14px;z-index:7;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;justify-content:flex-end}
   #search{font-family:'IBM Plex Mono',monospace;font-size:12.5px;background:var(--panel);color:var(--bone);border:1px solid rgba(201,162,75,.35);border-radius:2px;padding:8px 11px;width:230px;outline:none}
   #search::placeholder{color:var(--bone-dim)}
-  .btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:264px}
-  button.ctl{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.07em;text-transform:uppercase;background:var(--panel);color:var(--bone);border:1px solid rgba(233,225,208,.16);border-radius:2px;padding:7px 10px;cursor:pointer;transition:.15s}
+  .btns{display:flex;gap:6px;flex-wrap:wrap}
+  button.ctl{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.07em;text-transform:uppercase;background:var(--panel);color:var(--bone);border:1px solid rgba(233,225,208,.16);border-radius:2px;padding:7px 10px;cursor:pointer;transition:.15s;white-space:nowrap}
   button.ctl:hover{border-color:var(--gold);color:var(--gold)}
   button.ctl.on{border-color:var(--gold);color:var(--gold);background:rgba(201,162,75,.10)}
-  #legend{display:flex;flex-direction:column;gap:3px;background:var(--panel);border:1px solid rgba(233,225,208,.12);padding:9px 11px;border-radius:2px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--bone-dim)}
-  #legend .row{display:flex;align-items:center;gap:7px}#legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .combo{position:relative;width:200px}
+  .combo input{font-family:'IBM Plex Mono',monospace;font-size:12px;background:var(--panel);color:var(--bone);border:1px solid rgba(233,225,208,.22);border-radius:2px;padding:8px 26px 8px 11px;width:100%;outline:none;box-sizing:border-box}
+  .combo input::placeholder{color:var(--bone-dim)}
+  .combo input.active{border-color:var(--gold)}
+  .combo .clr{position:absolute;right:7px;top:50%;transform:translateY(-50%);color:var(--bone-dim);cursor:pointer;font-size:13px;display:none;pointer-events:auto}
+  .combo .clr.show{display:block}
+  .combo .drop{position:absolute;left:0;top:calc(100% + 4px);width:100%;max-height:260px;overflow-y:auto;background:#101411;border:1px solid rgba(201,162,75,.35);border-radius:2px;z-index:20;display:none;box-shadow:0 14px 30px rgba(0,0,0,.55)}
+  .combo .drop.show{display:block}
+  .combo .opt{padding:7px 11px;font-size:12px;font-family:'IBM Plex Mono',monospace;color:var(--bone-dim);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .combo .opt:hover,.combo .opt.sel{background:rgba(201,162,75,.14);color:var(--bone)}
+  .combo .opt .ct{color:var(--gold);margin-left:6px;font-size:10px}
+  .slidegrp{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid rgba(233,225,208,.16);border-radius:2px;padding:6px 10px}
+  .slidegrp label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--bone-dim);white-space:nowrap}
+  .slidegrp input[type=range]{width:74px;accent-color:var(--gold)}
+  #legend{display:flex;flex-wrap:wrap;gap:14px 22px;background:var(--panel);border:1px solid rgba(233,225,208,.12);padding:8px 14px;border-radius:2px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--bone-dim);position:fixed;left:14px;right:calc(var(--rail) + 14px);bottom:78px;z-index:7;justify-content:center}
+  #legend .row{display:flex;align-items:center;gap:7px;white-space:nowrap}#legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
   #rail{position:fixed;right:0;top:0;bottom:0;width:var(--rail);z-index:5;pointer-events:none;border-left:1px solid rgba(201,162,75,.28);background:linear-gradient(to left,rgba(11,14,12,.92),rgba(11,14,12,0))}
   #rail .mhead{position:absolute;top:16px;right:16px;left:14px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold)}
   .mstone{position:absolute;right:12px;left:12px;text-align:right;transition:opacity .25s;pointer-events:auto}
@@ -68,9 +82,10 @@
   @media (max-width:720px){
     :root{--rail:0px}#rail{display:none}#title{max-width:82vw}
     #stats{bottom:12px;gap:14px}
-    #detail{width:80vw;left:10vw;top:auto;bottom:172px;transform:none}
-    #ctl{right:12px}#search{width:170px}.btns{max-width:200px}
-    #scrub{left:10px;right:10px;bottom:60px;flex-wrap:wrap;gap:8px}#yearNow{font-size:24px;min-width:70px}
+    #detail{width:80vw;left:10vw;top:auto;bottom:230px;transform:none}
+    #ctl{left:14px;right:12px;top:128px;justify-content:flex-start}#search{width:150px}.combo{width:150px}
+    #legend{left:10px;right:10px;bottom:140px;font-size:9.5px;gap:9px}
+    #scrub{left:10px;right:10px;bottom:46px;flex-wrap:wrap;gap:8px}#yearNow{font-size:24px;min-width:70px}
   }
 </style>
 </head>
@@ -89,7 +104,16 @@
 </div>
 
 <div id="ctl">
-  <input id="search" placeholder="search grex or registrant…" autocomplete="off" spellcheck="false"/>
+  <div class="combo" id="grexCombo">
+    <input id="grexInput" placeholder="filter by grex name…" autocomplete="off" spellcheck="false"/>
+    <span class="clr" id="grexClr">×</span>
+    <div class="drop" id="grexDrop"></div>
+  </div>
+  <div class="combo" id="regCombo">
+    <input id="regInput" placeholder="filter by registrant…" autocomplete="off" spellcheck="false"/>
+    <span class="clr" id="regClr">×</span>
+    <div class="drop" id="regDrop"></div>
+  </div>
   <div class="btns">
     <button class="ctl" id="bConst">Founder constellation</button>
     <button class="ctl on" id="bGalaxy">Full galaxy</button>
@@ -99,12 +123,15 @@
     <button class="ctl on" id="bLabels">Labels</button>
     <button class="ctl" id="bSecond">2nd parent</button>
   </div>
-  <div id="legend">
-    <div class="row"><i style="background:var(--era1)"></i>1857–1904 · lost decades</div>
-    <div class="row"><i style="background:var(--era2)"></i>1905–1945 · rediscovery surge</div>
-    <div class="row"><i style="background:var(--era3)"></i>1946–1985 · mid-century</div>
-    <div class="row"><i style="background:var(--era4)"></i>1986–2026 · modern era</div>
-  </div>
+  <div class="slidegrp"><label>Edges</label><input type="range" id="edgeBright" min="20" max="220" value="100"/></div>
+  <div class="slidegrp"><label>Ticks</label><input type="range" id="tickBright" min="20" max="220" value="100"/></div>
+</div>
+
+<div id="legend">
+  <div class="row"><i style="background:var(--era1)"></i>1857–1904 · lost decades</div>
+  <div class="row"><i style="background:var(--era2)"></i>1905–1945 · rediscovery surge</div>
+  <div class="row"><i style="background:var(--era3)"></i>1946–1985 · mid-century</div>
+  <div class="row"><i style="background:var(--era4)"></i>1986–2026 · modern era</div>
 </div>
 
 <div id="rail"><div class="mhead">The Saga ↓</div></div>
@@ -186,6 +213,7 @@ function worldW(){return MODE==='const'?HUB_W:WORLD_W;}
 let MODE='full';                 // 'full' | 'const'
 let curYear=2026;                // time cutoff
 let hi=null,ancSet=null,subSet=null,focusOn=false,labelsOn=true,secondOn=false,playing=false;
+let edgeBright=1,tickBright=1;
 function vis(i){ return year[i]<=curYear+0.001 && (MODE!=='const' || hubset.has(i)); }
 function ancestry(i){const s=new Set();let c=i;while(c>=0){s.add(c);c=parentOf[c];}return s;}
 function subtree(i){const s=new Set();const st=[i];while(st.length){const n=st.pop();if(s.has(n))continue;s.add(n);for(const c of D.tchild[n])st.push(c);}return s;}
@@ -195,8 +223,8 @@ function draw(){
   ctx.save();ctx.scale(DPR,DPR);ctx.clearRect(0,0,W,Hh);
   // milestone hairlines
   for(const m of MILES){const sy=w2sy(yPix(m.y));if(sy<-2||sy>Hh+2)continue;const passed=m.y<=curYear;
-    ctx.strokeStyle='rgba(201,162,75,'+((m.major?0.22:0.10)*(passed?1:0.4))+')';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,sy);ctx.lineTo(W,sy);ctx.stroke();}
-  ctx.fillStyle='rgba(233,225,208,.28)';ctx.font="10px 'IBM Plex Mono',monospace";ctx.textAlign='left';
+    ctx.strokeStyle='rgba(201,162,75,'+Math.min(1,(m.major?0.22:0.10)*(passed?1:0.4)*tickBright)+')';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,sy);ctx.lineTo(W,sy);ctx.stroke();}
+  ctx.fillStyle=hexA('#e9e1d0',Math.min(1,0.28*tickBright));ctx.font="10px 'IBM Plex Mono',monospace";ctx.textAlign='left';
   for(let yr=1860;yr<=2020;yr+=20){const sy=w2sy(yPix(yr));if(sy<60||sy>Hh-10)continue;ctx.fillText(yr,8,sy-3);}
   const vx0=s2wx(0),vx1=s2wx(W),vy0=s2wy(0),vy1=s2wy(Hh);
   // edges
@@ -204,6 +232,7 @@ function draw(){
     ctx.lineWidth=Math.max(0.8,view.s*2);
     for(const [a,b] of M.trunk){ if(!vis(a)||!vis(b))continue;
       let A=0.5,col=ERA[era[b]]; if(ancSet){A=(ancSet.has(b)&&ancSet.has(a))?0.95:0.06;if(ancSet.has(b)&&ancSet.has(a))col='#c9a24b';}
+      A=Math.min(1,A*edgeBright);
       ctx.strokeStyle=hexA(col,A);
       const x1=w2sx(hx[a]),y1=w2sy(hy[a]),x2=w2sx(hx[b]),y2=w2sy(hy[b]),my=(y1+y2)/2;
       ctx.beginPath();ctx.moveTo(x1,y1);ctx.bezierCurveTo(x1,my,x2,my,x2,y2);ctx.stroke();}
@@ -215,6 +244,8 @@ function draw(){
       let a=0.16,col=ERA[era[i]];
       if(ancSet){a=(ancSet.has(i)&&ancSet.has(p))?0.95:0.05;if(ancSet.has(i)&&ancSet.has(p))col='#c9a24b';}
       else if(focusOn&&subSet){a=subSet.has(i)?0.5:0.03;}
+      else if(regSet){a=regSet.has(i)?0.8:0.04;if(regSet.has(i))col='#c9a24b';}
+      a=Math.min(1,a*edgeBright);
       ctx.strokeStyle=hexA(col,a);
       ctx.beginPath();ctx.moveTo(w2sx(X1),w2sy(Y1));const my=(w2sy(Y1)+w2sy(Y2))/2;
       ctx.bezierCurveTo(w2sx(X1),my,w2sx(X2),my,w2sx(X2),w2sy(Y2));ctx.stroke();}
@@ -222,7 +253,7 @@ function draw(){
       for(let i=0;i<N;i++){if(!vis(i))continue;for(const c of D.dagchild[i]){if(parentOf[c]===i||!vis(c))continue;
         const X1=x[i],Y1=ny[i],X2=x[c],Y2=ny[c];
         if(Math.max(X1,X2)<vx0||Math.min(X1,X2)>vx1||Math.max(Y1,Y2)<vy0||Math.min(Y1,Y2)>vy1)continue;
-        ctx.strokeStyle='rgba(70,166,172,.10)';ctx.beginPath();ctx.moveTo(w2sx(X1),w2sy(Y1));const my=(w2sy(Y1)+w2sy(Y2))/2;
+        ctx.strokeStyle='rgba(70,166,172,'+Math.min(1,0.10*edgeBright)+')';ctx.beginPath();ctx.moveTo(w2sx(X1),w2sy(Y1));const my=(w2sy(Y1)+w2sy(Y2))/2;
         ctx.bezierCurveTo(w2sx(X1),my,w2sx(X2),my,w2sx(X2),w2sy(Y2));ctx.stroke();}}}
   }
   // nodes
@@ -235,6 +266,7 @@ function draw(){
     let col=ERA[era[i]],a=1;
     if(ancSet){a=ancSet.has(i)?1:0.16;if(ancSet.has(i))col=(i===hi?'#fff':'#c9a24b');}
     else if(focusOn&&subSet){a=subSet.has(i)?1:0.10;}
+    else if(regSet){a=regSet.has(i)?1:0.12;if(regSet.has(i))col='#c9a24b';}
     if((D.nodes[i][DC]>400)&&(view.s<0.6||useHub)){ctx.beginPath();ctx.fillStyle=hexA('#c9a24b',(useHub?0.16:0.10)*a);ctx.arc(sx,sy,r+(useHub?9:6),0,6.2832);ctx.fill();}
     ctx.beginPath();ctx.fillStyle=hexA(col,a);ctx.arc(sx,sy,r,0,6.2832);ctx.fill();
     if(i===ROOT){ctx.lineWidth=2;ctx.strokeStyle=hexA('#c9a24b',a);ctx.stroke();}
@@ -268,7 +300,7 @@ const MILES=[
  {y:1912,major:0,t:'<em>Monte</em> — gateway to ~5,150 descendants'},
  {y:1930,major:0,t:'<em>Freya</em> — a second great hub'},
  {y:1958,major:1,t:'Sander firm liquidated · Camp Road nursery closes'},
- {y:2005,major:0,t:'Modern era · the line passes 10,000 heirs'},
+ {y:2005,major:0,t:'The line passes 10,000 heirs'},
 ];
 const rail=document.getElementById('rail');
 MILES.forEach(m=>{const d=document.createElement('div');d.className='mstone';d.innerHTML=`<div class="yr">${m.y}</div><div class="tx">${m.t}</div>`;rail.appendChild(d);m.el=d;});
@@ -316,7 +348,7 @@ function clickAt(e){const i=nearest(e.clientX,e.clientY);if(i<0){closeDetail();r
 
 // ---- detail ----
 const det=document.getElementById('detail');
-function select(i){hi=i;ancSet=null;subSet=null;focusOn=false;det.classList.add('show');
+function select(i){hi=i;ancSet=null;subSet=null;focusOn=false;regSet=null;regCombo.clearSilently();det.classList.add('show');
   document.getElementById('dName').textContent=D.nodes[i][NAME];
   document.getElementById('dYear').textContent=(i===ROOT?'SPECIES · ':'GREX · ')+(year[i]|0);
   const reg=regs[D.nodes[i][REG]]||'',sp=D.nodes[i][SP]||'—',pp=D.nodes[i][PP]||'—',gen=ancestry(i).size-1;
@@ -327,12 +359,12 @@ function select(i){hi=i;ancSet=null;subSet=null;focusOn=false;det.classList.add(
     `<dt>Descendants</dt><dd><span class="big">${fmt(D.nodes[i][DC])}</span></dd>`;
   draw();centerOn(i,Math.max(view.s,0.5));}
 function esc(s){return(s+'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
-function closeDetail(){det.classList.remove('show');hi=null;ancSet=null;focusOn=false;subSet=null;draw();}
+function closeDetail(){det.classList.remove('show');hi=null;ancSet=null;focusOn=false;subSet=null;regSet=null;draw();}
 function centerOn(i,s){view.s=s;view.tx=W/2-curX(i)*s;view.ty=Hh*0.42-curY(i)*s*view.k;draw();}
 document.getElementById('dClose').onclick=closeDetail;
-document.getElementById('dTrace').onclick=()=>{if(hi==null)return;ancSet=ancestry(hi);subSet=null;focusOn=false;
+document.getElementById('dTrace').onclick=()=>{if(hi==null)return;ancSet=ancestry(hi);subSet=null;focusOn=false;regSet=null;
   let a=1e9,b=-1e9,c=1e9,d=-1e9;ancSet.forEach(i=>{a=Math.min(a,curX(i));b=Math.max(b,curX(i));c=Math.min(c,curY(i));d=Math.max(d,curY(i));});fitTo(a,b,c,d,3);};
-document.getElementById('dFocus').onclick=()=>{if(hi==null)return;subSet=subtree(hi);ancSet=null;focusOn=true;
+document.getElementById('dFocus').onclick=()=>{if(hi==null)return;subSet=subtree(hi);ancSet=null;focusOn=true;regSet=null;
   let a=1e9,b=-1e9,c=1e9,d=-1e9;subSet.forEach(i=>{a=Math.min(a,curX(i));b=Math.max(b,curX(i));c=Math.min(c,curY(i));d=Math.max(d,curY(i));});fitTo(a,b,c,d,3);};
 
 // ---- controls ----
@@ -344,14 +376,78 @@ function setMode(m){MODE=m;bConst.classList.toggle('on',m==='const');bGalaxy.cla
   ancSet=null;subSet=null;focusOn=false;closeDetail();fitAll();}
 bConst.onclick=()=>setMode('const');
 bGalaxy.onclick=()=>setMode('full');
-const search=document.getElementById('search');
-search.addEventListener('keydown',e=>{if(e.key!=='Enter')return;const q=search.value.trim().toLowerCase();if(!q)return;
-  let hits=[];for(let i=0;i<N;i++){if(D.nodes[i][NAME].toLowerCase().includes(q)||(regs[D.nodes[i][REG]]||'').toLowerCase().includes(q))hits.push(i);}
-  if(!hits.length){search.style.borderColor='#cf6049';setTimeout(()=>search.style.borderColor='',600);return;}
-  hits.sort((a,b)=>D.nodes[b][DC]-D.nodes[a][DC]);
-  if(MODE==='const'&&!hubset.has(hits[0])){setMode('full');}
-  if(year[hits[0]]>curYear){setYear(2026);}
-  select(hits[0]);});
+// ---- registrant index (for the registrant combobox) ----
+const regNodes=Array.from({length:regs.length},()=>[]);
+for(let i=0;i<N;i++){const r=D.nodes[i][REG];if(r)regNodes[r].push(i);}
+let regSet=null;
+
+function jumpTo(i){
+  if(MODE==='const'&&!hubset.has(i)){setMode('full');}
+  if(year[i]>curYear){setYear(2026);}
+  select(i);
+}
+
+function fitToSet(set){
+  let a=1e9,b=-1e9,c=1e9,d=-1e9;set.forEach(i=>{a=Math.min(a,curX(i));b=Math.max(b,curX(i));c=Math.min(c,curY(i));d=Math.max(d,curY(i));});
+  fitTo(a,b,c,d,3);
+}
+
+// generic combobox builder
+function makeCombo(inputId,dropId,clrId,getMatches,onPick,onClear){
+  const inp=document.getElementById(inputId),drop=document.getElementById(dropId),clr=document.getElementById(clrId);
+  let items=[],sel=-1;
+  function close(){drop.classList.remove('show');sel=-1;}
+  function open(){if(items.length)drop.classList.add('show');}
+  function render(q){
+    items=getMatches(q);
+    drop.innerHTML=items.map((it,k)=>`<div class="opt" data-k="${k}">${esc(it.label)}${it.ct!=null?`<span class="ct">${fmt(it.ct)}</span>`:''}</div>`).join('');
+    sel=-1;
+    if(items.length){open();}else{close();drop.innerHTML='<div class="opt" style="cursor:default">No matches</div>';drop.classList.add('show');}
+  }
+  inp.addEventListener('input',()=>{
+    inp.classList.remove('active');clr.classList.remove('show');
+    const q=inp.value.trim().toLowerCase();
+    if(!q){close();drop.innerHTML='';onClear();return;}
+    render(q);
+  });
+  inp.addEventListener('focus',()=>{if(inp.value.trim())render(inp.value.trim().toLowerCase());});
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='ArrowDown'){e.preventDefault();sel=Math.min(items.length-1,sel+1);highlight();}
+    else if(e.key==='ArrowUp'){e.preventDefault();sel=Math.max(0,sel-1);highlight();}
+    else if(e.key==='Enter'){e.preventDefault();if(sel>=0&&items[sel])pick(sel);}
+    else if(e.key==='Escape'){close();}
+  });
+  function highlight(){[...drop.children].forEach((el,k)=>el.classList.toggle('sel',k===sel));
+    if(items[sel])drop.children[sel].scrollIntoView({block:'nearest'});}
+  drop.addEventListener('mousedown',e=>{const opt=e.target.closest('.opt');if(!opt||opt.dataset.k===undefined)return;pick(+opt.dataset.k);});
+  function pick(k){const it=items[k];inp.value=it.label;close();inp.classList.add('active');clr.classList.add('show');onPick(it);}
+  clr.addEventListener('click',()=>{inp.value='';inp.classList.remove('active');clr.classList.remove('show');close();onClear();inp.focus();});
+  document.addEventListener('click',e=>{if(!inp.contains(e.target)&&!drop.contains(e.target)&&e.target!==clr)close();});
+  return {clearSilently(){inp.value='';inp.classList.remove('active');clr.classList.remove('show');close();}};
+}
+
+const grexInput=document.getElementById('grexInput'),regInput=document.getElementById('regInput');
+const grexCombo=makeCombo('grexInput','grexDrop','grexClr',
+  (q)=>{const out=[];for(let i=0;i<N&&out.length<40;i++){if(D.nodes[i][NAME].toLowerCase().includes(q))out.push({label:D.nodes[i][NAME],i,ct:D.nodes[i][DC]});}
+    out.sort((a,b)=>b.ct-a.ct);return out.slice(0,40);},
+  (it)=>{regCombo.clearSilently();regSet=null;jumpTo(it.i);},
+  ()=>{closeDetail();}
+);
+const regCombo=makeCombo('regInput','regDrop','regClr',
+  (q)=>{const out=[];for(let r=1;r<regs.length;r++){if((regs[r]||'').toLowerCase().includes(q))out.push({label:regs[r],r,ct:regNodes[r].length});}
+    out.sort((a,b)=>b.ct-a.ct);return out.slice(0,40);},
+  (it)=>{grexCombo.clearSilently();closeDetail();
+    regSet=new Set(regNodes[it.r]);ancSet=null;subSet=null;focusOn=false;
+    if(MODE==='const'){const inHub=regNodes[it.r].some(i=>hubset.has(i));if(!inHub)setMode('full');}
+    if(regNodes[it.r].some(i=>year[i]>curYear))setYear(2026);
+    fitToSet(regSet);draw();},
+  ()=>{regSet=null;draw();}
+);
+
+// ---- brightness sliders ----
+const edgeSl=document.getElementById('edgeBright'),tickSl=document.getElementById('tickBright');
+edgeSl.addEventListener('input',()=>{edgeBright=(+edgeSl.value)/100;draw();});
+tickSl.addEventListener('input',()=>{tickBright=(+tickSl.value)/100;draw();});
 
 // ---- time scrubber ----
 const slider=document.getElementById('slider'),yearNow=document.getElementById('yearNow'),playBtn=document.getElementById('play');
