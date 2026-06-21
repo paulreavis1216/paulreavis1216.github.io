@@ -324,17 +324,28 @@ const MILES=[
 ];
 const rail=document.getElementById('rail');
 MILES.forEach(m=>{const d=document.createElement('div');d.className='mstone';d.innerHTML=`<div class="yr">${m.y}</div><div class="tx">${m.t}</div>`;rail.appendChild(d);m.el=d;});
-function positionMiles(){for(const m of MILES){let sy=w2sy(yPix(m.y));const el=m.el;
-  if(sy<-40||sy>Hh+40){el.style.opacity=0;continue;}sy=Math.max(sy,44);el.style.top=sy+'px';
-  el.classList.toggle('future',m.y>curYear);if(m.y<=curYear||true)el.style.opacity='';}}
+function positionMiles(){
+  // first pass: raw chronological position
+  for(const m of MILES){let sy=w2sy(yPix(m.y));
+    if(sy<-40||sy>Hh+40){m.rawSy=null;continue;}
+    m.rawSy=Math.max(sy,44);}
+  // second pass: enforce a minimum gap between consecutive on-screen milestones so close years
+  // (e.g. 1904 and 1905) never render their text blocks on top of one another
+  const MIN_GAP=58;let prevBottom=-1e9;
+  for(const m of MILES){if(m.rawSy==null)continue;
+    let sy=Math.max(m.rawSy,prevBottom+MIN_GAP);prevBottom=sy;m.placedSy=sy;}
+  for(const m of MILES){const el=m.el;
+    if(m.rawSy==null){el.style.opacity=0;continue;}
+    el.style.top=m.placedSy+'px';
+    el.classList.toggle('future',m.y>curYear);el.style.opacity='';}}
 
 // ---- view helpers ----
 function fitTo(minx,maxx,miny,maxy,maxS,vfill,hfill){const padL=60,padR=railPx()+60,padT=150,padB=110;
   const availW=W-padL-padR, availH=Hh-padT-padB;
   const bw=Math.max(maxx-minx,40),bh=Math.max(maxy-miny,40);
   let s,k,kx=1;
-  if(vfill){ s=Math.min(availW/bw, maxS||3); k=Math.max(1,Math.min(availH/(bh*s),8)); }
-  else if(hfill){ s=Math.min(availH/bh, maxS||3); kx=Math.max(1,Math.min(availW/(bw*s),8)); k=1; }
+  if(vfill){ s=Math.min(availW/bw, maxS||3); k=Math.max(1,Math.min(availH/(bh*s),16)); }
+  else if(hfill){ s=Math.min(availH/bh, maxS||3); kx=Math.max(1,Math.min(availW/(bw*s),16)); k=1; }
   else { s=Math.min(availW/bw, availH/bh, maxS||3); k=1; kx=1; }
   view.s=s; view.k=k; view.kx=kx;
   view.tx=padL+(availW-bw*s*kx)/2-minx*s*kx;
@@ -354,7 +365,11 @@ cv.addEventListener('pointermove',e=>{if(pts.has(e.pointerId))pts.set(e.pointerI
 cv.addEventListener('pointerup',e=>{pts.delete(e.pointerId);if(pts.size<2)pd0=0;drag=false;cv.classList.remove('drag');if(!moved)clickAt(e);});
 cv.addEventListener('pointerleave',()=>{drag=false;cv.classList.remove('drag');tip.style.display='none';});
 cv.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.clientX,e.clientY,Math.exp(-e.deltaY*0.0012));},{passive:false});
-function zoomAt(sx,sy,f){const ns=Math.max(0.02,Math.min(8,view.s*f));const wx=s2wx(sx),wy=s2wy(sy);view.s=ns;view.tx=sx-wx*ns*view.kx;view.ty=sy-wy*ns*view.k;draw();}
+function zoomAt(sx,sy,f){
+  // k/kx are fit-all-only stretch factors; once the user manually zooms, drop back to a uniform scale
+  // anchored at the current screen point, so stretch tuned for one fit-all level doesn't distort future zooms
+  if(view.k!==1||view.kx!==1){const wx=s2wx(sx),wy=s2wy(sy);view.k=1;view.kx=1;view.tx=sx-wx*view.s;view.ty=sy-wy*view.s;}
+  const ns=Math.max(0.02,Math.min(8,view.s*f));const wx=s2wx(sx),wy=s2wy(sy);view.s=ns;view.tx=sx-wx*ns;view.ty=sy-wy*ns;draw();}
 function nearest(sx,sy){const wx=s2wx(sx),wy=s2wy(sy);
   if(MODE==='const'){let best=-1,bd=1e9;for(const i of HUBS){if(!vis(i))continue;const d=(hx[i]-wx)**2+(hy[i]-wy)**2;const rr=Math.max(14/view.s,16);if(d<rr*rr&&d<bd){bd=d;best=i;}}return best;}
   const cx=(wx/CELL)|0,cy=(wy/CELL)|0;let best=-1,bd=1e9;
@@ -381,7 +396,7 @@ function select(i){hi=i;ancSet=null;subSet=null;focusOn=false;regSet=null;regCom
   draw();centerOn(i,Math.max(view.s,0.5));}
 function esc(s){return(s+'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function closeDetail(){det.classList.remove('show');hi=null;ancSet=null;focusOn=false;subSet=null;regSet=null;draw();}
-function centerOn(i,s){view.s=s;view.kx=1;view.tx=W/2-curX(i)*s*view.kx;view.ty=Hh*0.42-curY(i)*s*view.k;draw();}
+function centerOn(i,s){view.s=s;view.kx=1;view.k=1;view.tx=W/2-curX(i)*s;view.ty=Hh*0.42-curY(i)*s;draw();}
 document.getElementById('dClose').onclick=closeDetail;
 document.getElementById('dTrace').onclick=()=>{if(hi==null)return;ancSet=ancestry(hi);subSet=null;focusOn=false;regSet=null;
   let a=1e9,b=-1e9,c=1e9,d=-1e9;ancSet.forEach(i=>{a=Math.min(a,curX(i));b=Math.max(b,curX(i));c=Math.min(c,curY(i));d=Math.max(d,curY(i));});fitTo(a,b,c,d,3);};
