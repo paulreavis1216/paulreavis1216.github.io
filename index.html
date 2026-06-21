@@ -209,6 +209,7 @@ for(let i=0;i<N;i++){const k=gk((x[i]/CELL)|0,(ny[i]/CELL)|0);if(!grid.has(k))gr
 
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 let DPR=Math.min(window.devicePixelRatio||1,2),view={s:0.12,k:1,kx:1,tx:0,ty:0},W=0,Hh=0;
+let fitS=0.12,fitK=1,fitKx=1; // the scale/stretch fitTo last computed — zoomAt decays k/kx toward 1 relative to this reference
 function resize(){W=innerWidth;Hh=innerHeight;cv.width=W*DPR;cv.height=Hh*DPR;cv.style.width=W+'px';cv.style.height=Hh+'px';drawHist();draw();}
 addEventListener('resize',resize);
 const w2sx=wx=>wx*view.s*view.kx+view.tx,w2sy=wy=>wy*view.s*view.k+view.ty,s2wx=sx=>(sx-view.tx)/(view.s*view.kx),s2wy=sy=>(sy-view.ty)/(view.s*view.k);
@@ -281,27 +282,75 @@ function draw(){
     if((D.nodes[i][DC]>400)&&(view.s<0.6||useHub)){ctx.beginPath();ctx.fillStyle=hexA('#c9a24b',(useHub?0.16:0.10)*a);ctx.arc(sx,sy,r+(useHub?9:6),0,6.2832);ctx.fill();}
     ctx.beginPath();ctx.fillStyle=hexA(col,a);ctx.arc(sx,sy,r,0,6.2832);ctx.fill();
     if(i===ROOT){ctx.lineWidth=2;ctx.strokeStyle=hexA('#c9a24b',a);ctx.stroke();}
-    if(labelsOn||useHub){const big=useHub||i===ROOT||D.nodes[i][DC]>(view.s>0.9?0:view.s>0.45?80:view.s>0.22?500:1500);
-      if(big&&r>2)labelCands.push([i,sx,sy,r,a]);}
+    if(labelsOn||useHub){labelCands.push([i,sx,sy,r,a]);}
   }
-  // labels
-  if(labelsOn||useHub){labelCands.sort((p,q)=>D.nodes[q[0]][DC]-D.nodes[p[0]][DC]);const cap=Math.min(labelCands.length,useHub?40:420);
+  // labels — tiered by zoom, like a star chart: planets (founders) at Fit All, then moons, comets/asteroids, then debris as you zoom past ~75%
+  if(labelsOn||useHub){
     ctx.textAlign='left';ctx.textBaseline='middle';
-    const placed=[]; // occupied screen-space rects, for greedy collision avoidance (highest-priority label wins)
-    for(let k=0;k<cap;k++){const[i,sx,sy,r,a]=labelCands[k];
-      const fs=useHub?(i===ROOT?17:13):(i===ROOT?15:D.nodes[i][DC]>1500?12:D.nodes[i][DC]>300?11:10);
-      ctx.font=(i===ROOT?"italic 600 ":(useHub?"500 ":""))+fs+"px 'Fraunces',serif";
-      let lbl=D.nodes[i][NAME]; if(useHub&&i!==ROOT) lbl+='  ·  '+(yearUnknown[i]?'date unknown':(year[i]|0));
-      if(useHub){ // only the constellation view is dense enough to need this
+    if(useHub){
+      // constellation view is its own small, dense case — unchanged tiering, just the existing single-pool collision pass
+      labelCands.sort((p,q)=>D.nodes[q[0]][DC]-D.nodes[p[0]][DC]);
+      const placed=[];
+      for(let k=0;k<Math.min(labelCands.length,40);k++){const[i,sx,sy,r,a]=labelCands[k];
+        const fs=i===ROOT?17:13;
+        ctx.font=(i===ROOT?"italic 600 ":"500 ")+fs+"px 'Fraunces',serif";
+        let lbl=D.nodes[i][NAME]; if(i!==ROOT) lbl+='  ·  '+(yearUnknown[i]?'date unknown':(year[i]|0));
         const tw=ctx.measureText(lbl).width;
         const bx0=sx+r+2,by0=sy-fs*0.65,bx1=bx0+tw+6,by1=sy+fs*0.65;
-        let hit=false;
-        for(const p of placed){ if(bx0<p[2]&&bx1>p[0]&&by0<p[3]&&by1>p[1]){hit=true;break;} }
-        if(hit) continue; // skip this label, keep its dot — a higher-priority hub already claimed this space
+        let hit=false; for(const p of placed){ if(bx0<p[2]&&bx1>p[0]&&by0<p[3]&&by1>p[1]){hit=true;break;} }
+        if(hit) continue; placed.push([bx0,by0,bx1,by1]);
+        ctx.fillStyle=hexA('#e9e1d0',Math.min(1,a+0.1));ctx.shadowColor='rgba(0,0,0,.9)';ctx.shadowBlur=4;
+        ctx.fillText(lbl,sx+r+4,sy);ctx.shadowBlur=0;}
+    } else {
+      // TIER THRESHOLDS — gated by how far view.s has moved past fitS (the actual Fit-All scale for this window),
+      // so the tiers calibrate correctly regardless of window size. k/kx decay independently and don't track
+      // "how zoomed in" reliably, so the gate intentionally ignores them and uses raw s vs. fitS instead.
+      // Real DC distribution: DC>=1500 -> 18 nodes (planets) · DC>=200 -> 82 (moons) · DC>=29 -> 283 (comets/asteroids) · rest -> debris
+      const zoomRatio = view.s/Math.max(fitS,1e-6);
+      let dcGate;
+      if(zoomRatio<1.6) dcGate=1500;     // at/near Fit All: planets only
+      else if(zoomRatio<5) dcGate=200;   // early zoom: + moons
+      else if(zoomRatio<16) dcGate=29;   // mid zoom: + comets & asteroids
+      else dcGate=0;                    // deep zoom (~75%+, well past inspecting a single cluster): everything, incl. debris
+      const tier=labelCands.filter(c=>D.nodes[c[0]][DC]>=dcGate || c[0]===ROOT);
+      tier.sort((p,q)=>D.nodes[q[0]][DC]-D.nodes[p[0]][DC]);
+      const cap=Math.min(tier.length,260);
+      const placed=[]; const overflow=[];
+      for(let k=0;k<cap;k++){const[i,sx,sy,r,a]=tier[k];
+        const fs=i===ROOT?15:D.nodes[i][DC]>=1500?13:D.nodes[i][DC]>=200?11.5:D.nodes[i][DC]>=29?10.5:9.5;
+        ctx.font=(i===ROOT?"italic 600 ":"")+fs+"px 'Fraunces',serif";
+        let lbl=D.nodes[i][NAME];
+        const tw=ctx.measureText(lbl).width;
+        const bx0=sx+r+2,by0=sy-fs*0.65,bx1=bx0+tw+6,by1=sy+fs*0.65;
+        let hit=false; for(const p of placed){ if(bx0<p[2]&&bx1>p[0]&&by0<p[3]&&by1>p[1]){hit=true;break;} }
+        if(hit){ overflow.push({i,sx,sy,r,lbl,fs}); continue; }
         placed.push([bx0,by0,bx1,by1]);
+        ctx.fillStyle=hexA('#e9e1d0',Math.min(1,a+0.1));ctx.shadowColor='rgba(0,0,0,.9)';ctx.shadowBlur=4;
+        ctx.fillText(lbl,sx+r+4,sy);ctx.shadowBlur=0;}
+      // overflow within the active tier: cluster + one gold diagonal leader per cluster, capped so it never sprawls
+      if(overflow.length){
+        const used=new Array(overflow.length).fill(false); const clusters=[]; const CLUSTER_R=70;
+        for(let a=0;a<overflow.length;a++){ if(used[a])continue; const grp=[overflow[a]]; used[a]=true;
+          for(let b=a+1;b<overflow.length;b++){ if(used[b])continue;
+            const dx=overflow[b].sx-overflow[a].sx, dy=overflow[b].sy-overflow[a].sy;
+            if(dx*dx+dy*dy<CLUSTER_R*CLUSTER_R){ grp.push(overflow[b]); used[b]=true; } }
+          clusters.push(grp); if(clusters.length>=40) break; } // cap cluster count too — never let this get busy
+        for(const grp of clusters){
+          let ax=1e9,ay=1e9; for(const n of grp){ ax=Math.min(ax,n.sx); ay=Math.min(ay,n.sy); }
+          const LEAD=34,lx=ax+LEAD,ly=ay-LEAD;
+          ctx.strokeStyle='rgba(201,162,75,.5)';ctx.lineWidth=1;
+          ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(lx,ly);ctx.stroke();
+          ctx.beginPath();ctx.fillStyle='rgba(201,162,75,.75)';ctx.arc(ax,ay,1.4,0,6.2832);ctx.fill();
+          const cap2=Math.min(grp.length,4);
+          for(let g=0;g<cap2;g++){ const n=grp[g]; const tx=lx+g*8, ty=ly-5+g*12;
+            ctx.font=n.fs+"px 'Fraunces',serif";ctx.fillStyle='rgba(201,162,75,.88)';
+            ctx.shadowColor='rgba(0,0,0,.9)';ctx.shadowBlur=3;ctx.fillText(n.lbl,tx,ty);ctx.shadowBlur=0; }
+          if(grp.length>cap2){ ctx.font="9px 'IBM Plex Mono',monospace";ctx.fillStyle='rgba(201,162,75,.55)';
+            ctx.fillText('+'+(grp.length-cap2),lx+cap2*8,ly-5+cap2*12); }
+        }
       }
-      ctx.fillStyle=hexA('#e9e1d0',Math.min(1,a+0.1));ctx.shadowColor='rgba(0,0,0,.9)';ctx.shadowBlur=4;
-      ctx.fillText(lbl,sx+r+4,sy);ctx.shadowBlur=0;}}
+    }
+  }
   ctx.restore();positionMiles();
   document.getElementById('stShown').textContent=fmt(shownCount);
 }
@@ -348,6 +397,7 @@ function fitTo(minx,maxx,miny,maxy,maxS,vfill,hfill){const padL=60,padR=railPx()
   else if(hfill){ s=Math.min(availH/bh, maxS||3); kx=Math.max(1,Math.min(availW/(bw*s),16)); k=1; }
   else { s=Math.min(availW/bw, availH/bh, maxS||3); k=1; kx=1; }
   view.s=s; view.k=k; view.kx=kx;
+  fitS=s; fitK=k; fitKx=kx;
   view.tx=padL+(availW-bw*s*kx)/2-minx*s*kx;
   view.ty=padT+(availH-bh*s*k)/2-miny*s*k;draw();}
 function fitAll(){ancSet=null;subSet=null;focusOn=false;
@@ -366,10 +416,14 @@ cv.addEventListener('pointerup',e=>{pts.delete(e.pointerId);if(pts.size<2)pd0=0;
 cv.addEventListener('pointerleave',()=>{drag=false;cv.classList.remove('drag');tip.style.display='none';});
 cv.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.clientX,e.clientY,Math.exp(-e.deltaY*0.0012));},{passive:false});
 function zoomAt(sx,sy,f){
-  // k/kx are fit-all-only stretch factors; once the user manually zooms, drop back to a uniform scale
-  // anchored at the current screen point, so stretch tuned for one fit-all level doesn't distort future zooms
-  if(view.k!==1||view.kx!==1){const wx=s2wx(sx),wy=s2wy(sy);view.k=1;view.kx=1;view.tx=sx-wx*view.s;view.ty=sy-wy*view.s;}
-  const ns=Math.max(0.02,Math.min(8,view.s*f));const wx=s2wx(sx),wy=s2wy(sy);view.s=ns;view.tx=sx-wx*ns;view.ty=sy-wy*ns;draw();}
+  const wx=s2wx(sx),wy=s2wy(sy);
+  const ns=Math.max(0.006,Math.min(8,view.s*f));
+  // decay: at ns===fitS, stretch is full (fitK/fitKx); by ns >= fitS*6 (a comfortable inspection zoom), stretch has faded to 1.
+  // never re-stretch beyond what fitTo originally computed, even if the user zooms back out past fitS.
+  const t=Math.max(0,Math.min(1,(ns/fitS-1)/5));
+  view.k = fitK + (1-fitK)*t;
+  view.kx = fitKx + (1-fitKx)*t;
+  view.s=ns;view.tx=sx-wx*ns*view.kx;view.ty=sy-wy*ns*view.k;draw();}
 function nearest(sx,sy){const wx=s2wx(sx),wy=s2wy(sy);
   if(MODE==='const'){let best=-1,bd=1e9;for(const i of HUBS){if(!vis(i))continue;const d=(hx[i]-wx)**2+(hy[i]-wy)**2;const rr=Math.max(14/view.s,16);if(d<rr*rr&&d<bd){bd=d;best=i;}}return best;}
   const cx=(wx/CELL)|0,cy=(wy/CELL)|0;let best=-1,bd=1e9;
@@ -384,7 +438,7 @@ function clickAt(e){const i=nearest(e.clientX,e.clientY);if(i<0){closeDetail();r
 
 // ---- detail ----
 const det=document.getElementById('detail');
-function select(i){hi=i;ancSet=null;subSet=null;focusOn=false;regSet=null;regCombo.clearSilently();det.classList.add('show');
+function select(i,minZoom){hi=i;ancSet=null;subSet=null;focusOn=false;regSet=null;regCombo.clearSilently();det.classList.add('show');
   document.getElementById('dName').textContent=D.nodes[i][NAME];
   document.getElementById('dYear').textContent=(i===ROOT?'SPECIES · ':'GREX · ')+(yearUnknown[i]?'natural hybrid, date unknown':(year[i]|0));
   const reg=regs[D.nodes[i][REG]]||'',sp=D.nodes[i][SP]||'—',pp=D.nodes[i][PP]||'—',gen=ancestry(i).size-1;
@@ -393,10 +447,13 @@ function select(i){hi=i;ancSet=null;subSet=null;focusOn=false;regSet=null;regCom
     (i===ROOT?'':`<dt>Parents</dt><dd>${esc(sp)} <em>×</em> ${esc(pp)}</dd>`)+
     `<dt>Generation</dt><dd>${i===ROOT?'0 — the source':gen+' from fairrieanum'}</dd>`+
     `<dt>Descendants</dt><dd><span class="big">${fmt(D.nodes[i][DC])}</span></dd>`;
-  draw();centerOn(i,Math.max(view.s,0.5));}
+  draw();centerOn(i,minZoom?Math.max(view.s,minZoom):view.s);}
 function esc(s){return(s+'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function closeDetail(){det.classList.remove('show');hi=null;ancSet=null;focusOn=false;subSet=null;regSet=null;draw();}
-function centerOn(i,s){view.s=s;view.kx=1;view.k=1;view.tx=W/2-curX(i)*s;view.ty=Hh*0.42-curY(i)*s;draw();}
+function centerOn(i,s){
+  const t=Math.max(0,Math.min(1,(s/fitS-1)/5));
+  view.k = fitK + (1-fitK)*t; view.kx = fitKx + (1-fitKx)*t;
+  view.s=s;view.tx=W/2-curX(i)*s*view.kx;view.ty=Hh*0.42-curY(i)*s*view.k;draw();}
 document.getElementById('dClose').onclick=closeDetail;
 document.getElementById('dTrace').onclick=()=>{if(hi==null)return;ancSet=ancestry(hi);subSet=null;focusOn=false;regSet=null;
   let a=1e9,b=-1e9,c=1e9,d=-1e9;ancSet.forEach(i=>{a=Math.min(a,curX(i));b=Math.max(b,curX(i));c=Math.min(c,curY(i));d=Math.max(d,curY(i));});fitTo(a,b,c,d,3);};
@@ -423,7 +480,7 @@ let regSet=null;
 function jumpTo(i){
   if(MODE==='const'&&!hubset.has(i)){setMode('full');}
   if(year[i]>curYear){setYear(2026);}
-  select(i);
+  select(i,0.5);
 }
 
 function fitToSet(set){
