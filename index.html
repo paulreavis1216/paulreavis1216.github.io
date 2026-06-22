@@ -439,7 +439,15 @@ const tip=document.getElementById('tooltip');
 function hover(e){const i=nearest(e.clientX,e.clientY);if(i<0){tip.style.display='none';cv.style.cursor='grab';return;}
   cv.style.cursor='pointer';tip.style.display='block';tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY+12)+'px';
   tip.innerHTML=`<b>${D.nodes[i][NAME]}</b> &nbsp;${yearUnknown[i]?'date unknown':(year[i]|0)} · ${fmt(D.nodes[i][DC])} heirs`;}
-function clickAt(e){const i=nearest(e.clientX,e.clientY);if(i<0){closeDetail();return;}select(i);}
+function clickAt(e){
+  // defensive: if these coordinates fall within the top control bar's actual bounds (comboboxes/buttons/sliders),
+  // never treat this as a canvas click. A dropdown item closing right as a click lands can let the event fall
+  // through to the canvas underneath, which would otherwise wrongly call closeDetail() and wipe out a selection
+  // that was just made via the search box. Checking the real element rect (not a guessed pixel cutoff) keeps
+  // this correct across window sizes and the bar's wrapped/narrow-screen layout.
+  const ctlRect = document.getElementById('ctl').getBoundingClientRect();
+  if(e.clientX>=ctlRect.left-4 && e.clientX<=ctlRect.right+4 && e.clientY>=ctlRect.top-4 && e.clientY<=ctlRect.bottom+270) return;
+  const i=nearest(e.clientX,e.clientY);if(i<0){closeDetail();return;}select(i);}
 
 // ---- detail ----
 const det=document.getElementById('detail');
