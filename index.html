@@ -60,6 +60,10 @@
   #detail dt{color:var(--bone-dim);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding-top:2px}
   #detail dd{margin:0}#detail dd em{font-style:italic;color:var(--bone-dim)}
   #detail .big{font-family:'Fraunces',serif;font-size:22px;font-weight:600;color:var(--gold)}
+  #detail #dStats{display:flex;align-items:center;justify-content:space-between;margin-top:16px}
+  #detail .stat{text-align:center;flex:1}
+  #detail .stat .cap{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--bone-dim);margin-top:3px}
+  #detail .donut{flex:0 0 auto;margin:0 4px}
   #detail .act{margin-top:14px;display:flex;gap:7px}
   #detail .act button{flex:1;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;background:transparent;color:var(--bone);border:1px solid rgba(233,225,208,.2);padding:8px;border-radius:2px;cursor:pointer;pointer-events:auto;transition:.15s}
   #detail .act button:hover{border-color:var(--gold);color:var(--gold)}
@@ -143,6 +147,7 @@
   <div class="gname" id="dName">—</div>
   <div class="gyear" id="dYear"></div>
   <dl id="dList"></dl>
+  <div id="dStats"></div>
   <div class="act"><button id="dTrace">Trace to fairrieanum</button><button id="dFocus">Isolate line</button></div>
 </div>
 
@@ -163,6 +168,18 @@ const NAME=0,YEAR=1,REG=2,DC=3,SP=4,PP=5;
 const N=D.nodes.length,ROOT=D.root,regs=D.regs;
 const parentOf=new Int32Array(N).fill(-1);
 for(let p=0;p<N;p++)for(const c of D.tchild[p])parentOf[c]=p;
+// ---- % fairrieanum ancestry: each cross is 50/50 of its two named parents; a parent name that isn't
+// fairrieanum and doesn't match another node in this tree floors to 0% (unrelated species, or a hybrid
+// outside the fairrieanum line) — same convention used in the registry-wide spreadsheet pass ----
+const nameIdx={};for(let i=0;i<N;i++)nameIdx[D.nodes[i][NAME].trim().toLowerCase()]=i;
+const fairPct=new Float64Array(N);
+{const pstate=new Uint8Array(N);
+ const pctContrib=nm=>{if(!nm)return 0;nm=nm.trim().toLowerCase();if(nm[0]==='×')nm=nm.slice(1).trim();
+   if(nm==='fairrieanum')return 100;const j=nameIdx[nm];return j===undefined?0:pctOf(j);};
+ function pctOf(i){if(i===ROOT)return 100;if(pstate[i]===2)return fairPct[i];if(pstate[i]===1)return 0;
+   pstate[i]=1;const r=(pctContrib(D.nodes[i][SP])+pctContrib(D.nodes[i][PP]))/2;fairPct[i]=r;pstate[i]=2;return r;}
+ for(let i=0;i<N;i++)pctOf(i);
+ fairPct[ROOT]=100;}
 const year=new Float64Array(N);
 const yearUnknown=new Uint8Array(N); // true registration year missing from the register (e.g. natural hybrids) — synthetic year below is for layout only, never for the time-scrubber cutoff
 {const order=[ROOT];for(let i=0;i<order.length;i++){for(const c of D.tchild[order[i]])order.push(c);}
@@ -458,10 +475,26 @@ function select(i,minZoom){hi=i;ancSet=null;subSet=null;focusOn=false;regSet=nul
   document.getElementById('dList').innerHTML=
     `<dt>Registrant</dt><dd>${reg||'<em>unknown</em>'}</dd>`+
     (i===ROOT?'':`<dt>Parents</dt><dd>${esc(sp)} <em>×</em> ${esc(pp)}</dd>`)+
-    `<dt>Generation</dt><dd>${i===ROOT?'0 — the source':gen+' from fairrieanum'}</dd>`+
-    `<dt>Descendants</dt><dd><span class="big">${fmt(D.nodes[i][DC])}</span></dd>`;
+    `<dt>Generation</dt><dd>${i===ROOT?'0 — the source':'F'+gen}</dd>`;
+  const pct=fairPct[i];
+  document.getElementById('dStats').innerHTML=
+    `<div class="stat"><span class="big">${fmt(D.nodes[i][DC])}</span><div class="cap">Descendants</div></div>`+
+    `<svg viewBox="0 0 64 64" width="52" height="52" class="donut">`+
+      `<circle cx="32" cy="32" r="26" fill="none" style="stroke:var(--gold)" stroke-width="1.5" opacity=".3"/>`+
+      pieSlice(32,32,26,pct)+
+    `</svg>`+
+    `<div class="stat"><span class="big">${pct.toFixed(1)}%</span><div class="cap">fairrieanum</div></div>`;
   draw();centerOn(i,minZoom?Math.max(view.s,minZoom):view.s);}
 function esc(s){return(s+'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function pieSlice(cx,cy,r,pct){ // filled wedge from 12 o'clock, clockwise, for the % fairrieanum donut
+  if(pct<=0.0001)return '';
+  if(pct>=99.9999)return `<circle cx="${cx}" cy="${cy}" r="${r}" style="fill:var(--gold)"/>`;
+  const a=pct/100*2*Math.PI,a0=-Math.PI/2,a1=a0+a;
+  const x1=(cx+r*Math.cos(a0)).toFixed(2),y1=(cy+r*Math.sin(a0)).toFixed(2);
+  const x2=(cx+r*Math.cos(a1)).toFixed(2),y2=(cy+r*Math.sin(a1)).toFixed(2);
+  const large=a>Math.PI?1:0;
+  return `<path d="M${cx} ${cy} L${x1} ${y1} A${r} ${r} 0 ${large} 1 ${x2} ${y2} Z" style="fill:var(--gold)"/>`;
+}
 function closeDetail(){det.classList.remove('show');hi=null;ancSet=null;focusOn=false;subSet=null;regSet=null;regCombo.clearSilently();grexCombo.clearSilently();fitAll();}
 function centerOn(i,s){
   const t=Math.max(0,Math.min(1,(s/fitS-1)/5));
@@ -497,7 +530,14 @@ function jumpTo(i){
 }
 
 function fitToSet(set){
-  let a=1e9,b=-1e9,c=1e9,d=-1e9;set.forEach(i=>{a=Math.min(a,curX(i));b=Math.max(b,curX(i));c=Math.min(c,curY(i));d=Math.max(d,curY(i));});
+  let a=1e9,b=-1e9,c=1e9,d=-1e9,any=false;
+  set.forEach(i=>{
+    const cutoffOK = yearUnknown[i] ? curYear>=2026 : year[i]<=curYear+0.001;
+    if(!cutoffOK && i!==ROOT) return; // skip nodes the timeline cutoff has hidden, so the camera frames what's actually on screen
+    any=true;
+    a=Math.min(a,curX(i));b=Math.max(b,curX(i));c=Math.min(c,curY(i));d=Math.max(d,curY(i));
+  });
+  if(!any){a=curX(ROOT);b=curX(ROOT);c=curY(ROOT);d=curY(ROOT);} // degenerate fallback: nothing in the set is visible yet, frame the root
   fitTo(a,b,c,d,3,true);
 }
 
